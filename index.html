@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการคลังสินค้า</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            text-align: center;
+        }
+        input, select, button {
+            margin: 5px;
+            padding: 10px;
+            width: 100%;
+        }
+        button {
+            cursor: pointer;
+            background-color: #28a745;
+            color: white;
+            border: none;
+        }
+        button.delete-btn {
+            background-color: #dc3545;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>📦 ระบบจัดการคลังสินค้า</h2>
+        <div class="input-section">
+            <input type="text" id="productName" placeholder="ชื่อสินค้า">
+            <input type="number" id="productPrice" placeholder="ราคา">
+            <input type="number" id="productStock" placeholder="จำนวนสินค้า">
+
+            <select id="productCategory">
+                <option value="Food & Beverages">อาหารและเครื่องดื่ม</option>
+                <option value="Electronics & Appliances">เครื่องใช้ไฟฟ้าและอุปกรณ์อิเล็กทรอนิกส์</option>
+                <option value="Fashion & Apparel">เสื้อผ้าและเครื่องแต่งกาย</option>
+            </select>
+
+            <button onclick="addProduct()">เพิ่มสินค้า</button>
+        </div>
+
+        <div class="stats">
+            <h3>รายการสินค้า</h3>
+            <ul id="productList"></ul>
+            <h4>สินค้าที่ใกล้หมด</h4>
+            <ul id="lowStockList"></ul>
+            <h4>สินค้าขายดี</h4>
+            <ul id="bestSellingList"></ul>
+            <h4>ยอดขายทั้งหมด: <span id="totalRevenue">0 บาท</span></h4>
+            <button onclick="generateSaleReport()">📊 ดูรายงานยอดขาย</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            displayProducts();
+        });
+
+        function getProducts() {
+            return JSON.parse(localStorage.getItem('products')) || [];
+        }
+
+        function saveProducts(products) {
+            localStorage.setItem('products', JSON.stringify(products));
+        }
+
+        function addProduct() {
+            const name = document.getElementById("productName").value;
+            const price = parseFloat(document.getElementById("productPrice").value);
+            const inStock = parseInt(document.getElementById("productStock").value);
+            const category = document.getElementById("productCategory").value;
+
+            if (!name || isNaN(price) || isNaN(inStock)) {
+                alert("กรุณากรอกข้อมูลให้ครบถ้วน!");
+                return;
+            }
+
+            const newProduct = {
+                id: Date.now().toString(),
+                name,
+                price,
+                inStock,
+                category,
+                totalSales: 0
+            };
+
+            const products = getProducts();
+            products.push(newProduct);
+            saveProducts(products);
+            displayProducts();
+
+            document.getElementById("productName").value = "";
+            document.getElementById("productPrice").value = "";
+            document.getElementById("productStock").value = "";
+        }
+
+        function updateStock(index, quantity) {
+            let products = getProducts();
+            quantity = parseInt(quantity);
+
+            if (quantity >= 0) {
+                products[index].inStock = quantity;
+                saveProducts(products);
+                displayProducts();
+            } else {
+                alert("จำนวนสินค้าต้องไม่เป็นค่าลบ!");
+            }
+        }
+
+        function checkLowStock() {
+            const products = getProducts();
+            return products.filter(product => product.inStock < 5);
+        }
+
+        function sellProduct(index) {
+            let products = getProducts();
+            if (products[index].inStock > 0) {
+                products[index].inStock--;
+                products[index].totalSales++;
+                saveProducts(products);
+                displayProducts();
+            } else {
+                alert("สินค้าหมดสต็อก!");
+            }
+        }
+
+        function deleteProduct(index) {
+            let products = getProducts();
+            products.splice(index, 1);
+            saveProducts(products);
+            displayProducts();
+        }
+
+        function generateSaleReport() {
+            const products = getProducts();
+            let report = "รายงานยอดขายสินค้า\n\n";
+
+            products.forEach(product => {
+                report += `🔹 ${product.name}: ขายไป ${product.totalSales} ชิ้น | รายได้รวม ${product.totalSales * product.price} บาท\n`;
+            });
+
+            report += `\n ยอดขายทั้งหมด: ${products.reduce((sum, p) => sum + (p.totalSales * p.price), 0)} บาท`;
+
+            alert(report);
+        }
+
+        function displayProducts() {
+            const products = getProducts();
+            const productList = document.getElementById("productList");
+            const lowStockList = document.getElementById("lowStockList");
+            const bestSellingList = document.getElementById("bestSellingList");
+
+            productList.innerHTML = "";
+            lowStockList.innerHTML = "";
+            bestSellingList.innerHTML = "";
+
+            let totalSales = 0;
+
+            products.forEach((product, index) => {
+                totalSales += product.totalSales * product.price;
+
+                let listItem = document.createElement("li");
+                listItem.innerHTML = `
+                    ${product.name} - ${product.price} บาท | คงเหลือ: 
+                    <input type="number" value="${product.inStock}" min="0" onchange="updateStock(${index}, this.value)">
+                    | ขายแล้ว: ${product.totalSales}
+                    <button onclick="sellProduct(${index})">ขาย</button>
+                    <button onclick="deleteProduct(${index})" class="delete-btn">ลบ</button>
+                `;
+                productList.appendChild(listItem);
+            });
+
+            const bestSellingProducts = [...products].sort((a, b) => b.totalSales - a.totalSales).slice(0, 5);
+            bestSellingProducts.forEach((product) => {
+                let bestSellingItem = document.createElement("li");
+                bestSellingItem.textContent = `${product.name} - ขายไปแล้ว ${product.totalSales} ชิ้น`;
+                bestSellingList.appendChild(bestSellingItem);
+            });
+
+            checkLowStock().forEach(product => {
+                let lowStockItem = document.createElement("li");
+                lowStockItem.textContent = `${product.name} - เหลือ ${product.inStock} ชิ้น`;
+                lowStockList.appendChild(lowStockItem);
+            });
+
+            document.getElementById("totalRevenue").textContent = totalSales.toLocaleString() + " บาท";
+        }
+    </script>
+</body>
+
+</html>
